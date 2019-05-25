@@ -4,6 +4,8 @@ from reconchess import *
 import os
 import math
 
+# from attacker_bot.py, used to flip move sequence if player color
+# starts as black
 def flipped_move(move):
     def flipped(square):
         return chess.square(chess.square_file(square), 7 - chess.square_rank(square))
@@ -19,50 +21,64 @@ class ZoneBot(Player):
         self.board = board
         self.color = color
         self.my_piece_captured_square = None
+
+        # initial move sequence for quick attack
         self.move_sequence = [chess.Move(chess.B1, chess.C3), chess.Move(chess.C3, chess.B5), chess.Move(chess.B5, chess.D6),
      chess.Move(chess.D6, chess.E8)]
+
+        # flip move sequence to opposite side if player is black
         if color == chess.BLACK:
             self.move_sequence = list(map(flipped_move, self.move_sequence))
         
+        # keep track of turn number for sensing 
         self.turn_number = 1
+        # store final move choice
         self.selected_move = List[chess.Move]
+        # keep track of king location
         self.king_location = self.board.king(self.color)
 
+    # evaluate board state
     def evaluate(self, move_actions: List[chess.Move]):
-        # evaluate board state
         value = 0
-        pieces = [1, 2, 2, 2, 40, 100]
+        # values of each piece: p, r, n, b, q, k
+        pieces = [1, 2, 7, 4, 40, 500]
+        # evaluate current board state based off of move taken
         for square, piece in self.board.piece_map().items():
             if piece is not None:
                 if piece.color != self.color:
                     if piece.piece_type is chess.PAWN:
-                        value -= pieces[0]
+                        value += pieces[0]
                     if piece.piece_type is chess.ROOK:
-                        value -= pieces[1]
+                        value += pieces[1]
                     if piece.piece_type is chess.KNIGHT:
-                        value -= pieces[2]
+                        value += pieces[2]
                     if piece.piece_type is chess.BISHOP:
-                        value -= pieces[3]
+                        value += pieces[3]
                     if piece.piece_type is chess.QUEEN:
-                        value -= pieces[4]
+                        value += pieces[4]
                     if piece.piece_type is chess.KING:
-                        value -= pieces[5]
+                        value += pieces[5]
+                # if pieces are too far from king, calculate reduction
                 if piece.color == self.color:
                     if square > self.king_location + 7:
-                        value -= 20
+                        value += 20
         return value
 
     def minimax(self, move_actions: List[chess.Move], isMax, depth, alpha, beta):
-        #base case
+        # base case
         if depth == 0:
             return -self.evaluate(move_actions)
     
+        # max player move
         if isMax:
             bestValue = -math.inf
             for move in move_actions:
+                # push move into board
                 self.board.push(move)
+                # recursively calculate value of move and all possible future moves
                 value = self.minimax(move_actions, False, depth - 1, alpha, beta)
                 print("As Max", value)
+                # save the best value and insert the move into the list
                 if value > bestValue:
                     bestValue = value
                     self.selected_move.insert(0, move)
@@ -126,8 +142,11 @@ class ZoneBot(Player):
         #        self.turn_number = self.turn_number + 1
         #        return self.move_sequence.pop(0)
         #else:
+            # add random move onto the stack
             self.selected_move = [random.choice(move_actions + [None])]
-            self.minimax(move_actions, True, 10, -math.inf, math.inf)
+            # calculate best move
+            self.minimax(move_actions, True, 3, -math.inf, math.inf)
+            # keep track of king location
             if self.board.king(self.color) is not None:
                 self.king_location = self.board.king(self.color)
             return self.selected_move.pop()
